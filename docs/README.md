@@ -74,6 +74,13 @@ $$
 
 否则正推力会与 NED 重力同向，无法产生悬停。
 
+**代码对应**
+
+| 文件 | 函数 | 当前行号 | 实现 |
+|---|---|---:|---|
+| [`dynamics.py`](../src/drone_gnc/drone_gnc/dynamics.py#L81-L98) | `rotor_wrench_frd` | 81-98 | 正旋翼推力映射为 FRD 负 z 合力 |
+| [`nmpc.py`](../src/drone_gnc/drone_gnc/nmpc.py#L74-L101) | `_continuous_symbolic` | 74-101 | NMPC 使用相同推力符号 |
+
 ### 2. 平移动力学中的质量
 
 课程 PDF 的连续方程中未显式写出 $1/m$。力除以质量才得到加速度，因此本项目使用：
@@ -81,6 +88,13 @@ $$
 $$
 \dot{\mathbf v}^W=\mathbf g^W+\frac{1}{m}R_{WB}\mathbf F_T^B.
 $$
+
+**代码对应**
+
+| 文件 | 函数 | 当前行号 | 实现 |
+|---|---|---:|---|
+| [`dynamics.py`](../src/drone_gnc/drone_gnc/dynamics.py#L164-L196) | `continuous_dynamics` | 164-196 | NumPy 动力学中的质量项 |
+| [`nmpc.py`](../src/drone_gnc/drone_gnc/nmpc.py#L74-L107) | `_continuous_symbolic` | 74-107 | CasADi 动力学中的质量项 |
 
 这两项差异在 [四旋翼动力学文档](02_quadrotor_dynamics.md) 中完整展开。
 

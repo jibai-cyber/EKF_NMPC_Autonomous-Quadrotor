@@ -355,7 +355,7 @@ $$
 
 $$
 T_\Sigma=
-m(\mathbf b_{3,d}^TR\mathbf e_3)
+m\,(\mathbf b_{3,d}^TR\mathbf e_3)\,
 \|\mathbf g-\mathbf a_d\|_2.
 $$
 

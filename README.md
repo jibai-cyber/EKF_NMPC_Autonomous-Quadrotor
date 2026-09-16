@@ -1,42 +1,116 @@
-# MA6224 独立四旋翼 EKF + NMPC 仿真平台
+# EKF-NMPC Autonomous Quadrotor
 
-本仓库实现一套可复现的 ROS 2/Gazebo 四旋翼 Guidance, Navigation and Control
-(GNC) 仿真环境。飞行器动力学、19 维 EKF、约束 NMPC、任务轨迹和安全回退控制均由
-本项目独立实现，不调用 PX4 或 Gazebo 的现成多旋翼动力学/飞控模型。
+A reproducible ROS 2 and Gazebo simulation platform for nonlinear state estimation and
+constraint-aware trajectory tracking of a quadrotor.
 
-默认任务由三个阶段组成：从地面垂直起飞到八字起点、原地调整初始 yaw、直接进入
-三维八字轨迹。Gazebo 中会同时显示实际轨迹和参考轨迹。
+The quadrotor dynamics, 19-state EKF, constrained NMPC, mission generator, actuator mixer,
+and safety fallback controllers are implemented directly in this repository. The project does
+not call PX4 or Gazebo's ready-made multicopter dynamics or flight-control models. Gazebo is
+used only for generic rigid-body physics, collision, raw sensors, and visualization.
 
-## 1. 当前软件栈
+The default mission has three phases:
 
-| 组件 | 版本或约束 |
+1. vertical takeoff from the ground to the figure-8 start point;
+2. in-place yaw alignment with the initial trajectory direction;
+3. direct tracking of the three-dimensional figure-8 trajectory.
+
+Gazebo displays both the ground-truth flight trail and the reference trail.
+
+## Quick Start
+
+The commands below assume a Linux host with an X11 desktop, Git, sudo access, and an active
+internet connection.
+
+### 1. Clone and enter the repository
+
+```bash
+git clone https://github.com/jibai-cyber/EKF_NMPC_Autonomous-Quadrotor.git
+cd EKF_NMPC_Autonomous-Quadrotor
+```
+
+### 2. Install Docker and build the development image
+
+```bash
+./scripts/bootstrap_host.sh
+```
+
+If the script adds your account to the `docker` group, log out and back in, return to the
+repository, and run the same command again.
+
+### 3. Allow the container to use the X11 display
+
+```bash
+xhost +SI:localuser:"$(id -un)"
+```
+
+### 4. Enter the development container
+
+Export the host user and graphics-group IDs so files created in the mounted workspace retain
+the correct ownership:
+
+```bash
+export LOCAL_UID="$(id -u)"
+export LOCAL_GID="$(id -g)"
+export LOCAL_VIDEO_GID="$(getent group video | cut -d: -f3)"
+export LOCAL_RENDER_GID="$(getent group render | cut -d: -f3)"
+```
+
+```bash
+docker compose run --rm drone-dev
+```
+
+### 5. Build, test, and launch inside the container
+
+```bash
+./scripts/build_workspace.sh
+source install/setup.bash
+python3 -m pytest -q
+./scripts/run_simulation.sh
+```
+
+The Gazebo window should open with the quadrotor on the ground. It takes off to
+`(0, 0, -2.0 m)` in NED coordinates, aligns yaw to approximately `53.13 deg`, and then
+starts the figure-8.
+
+After closing the container, the optional X11 permission can be revoked on the host:
+
+```bash
+xhost -SI:localuser:"$(id -un)"
+```
+
+For installation details and troubleshooting, continue with the sections below.
+
+## 1. Tested Software Stack
+
+| Component | Version or requirement |
 |---|---|
-| 宿主机 | Linux；当前验证环境为 Ubuntu 26.04 |
-| 容器基础系统 | Ubuntu 24.04 系列 ROS 官方镜像 |
+| Host operating system | Linux; verified on Ubuntu 26.04 |
+| Container base | Ubuntu 24.04-based official ROS image |
 | ROS | ROS 2 Jazzy |
 | Gazebo | Gazebo Harmonic / gz-sim 8.11.0 |
 | Python | 3.12.3 |
-| 优化器 | CasADi 3.8.0 + IPOPT |
-| 构建工具 | colcon + CMake + ament |
-| 容器工具 | Docker Engine + Docker Compose v2 |
+| Optimizer | CasADi 3.8.0 with IPOPT |
+| Build tools | colcon, CMake, and ament |
+| Container runtime | Docker Engine with Docker Compose v2 |
 
-ROS 2 Jazzy 的官方目标系统是 Ubuntu 24.04。使用容器可以避免在较新的宿主系统中
-混装 ROS、Gazebo 和 Python 依赖。
+ROS 2 Jazzy officially targets Ubuntu 24.04. The container prevents ROS, Gazebo, and Python
+dependencies from being mixed with packages from a newer host distribution.
 
-## 2. 设计边界与坐标约定
+## 2. Design Boundaries and Coordinate Conventions
 
-- 世界坐标系采用 NED：x 向北、y 向东、z 向下；高度越高，z 越负。
-- 机体坐标系采用 FRD：x 向前、y 向右、z 向下。
-- 控制器状态为 13 维：`p(3) + v(3) + q(4) + omega(3)`。
-- EKF 内部状态为 19 维：13 维飞行器状态加 `b_a(3) + b_g(3)`。
-- 六维 IMU bias 只保留在 EKF 内部，不发布给控制器。
-- 控制输入是四个物理旋翼推力 `[T0, T1, T2, T3]`，单位为 N。
-- Gazebo 仅提供刚体物理、碰撞、原始传感器和可视化。
-- 自编 Gazebo 插件直接将四旋翼推力映射成机体合力和力矩。
+- World frame: North-East-Down (NED). Increasing altitude makes z more negative.
+- Body frame: Forward-Right-Down (FRD).
+- Controller state: `p(3) + v(3) + q(4) + omega(3) = 13` states.
+- EKF internal state: the 13 vehicle states plus `b_a(3) + b_g(3) = 19` states.
+- The six IMU bias states remain internal to the EKF and are not published to the controller.
+- Control input: four physical rotor thrusts `[T0, T1, T2, T3]` in newtons.
+- Gazebo provides rigid-body integration, collision, raw sensors, and visualization.
+- The custom Gazebo plugin maps the four rotor thrusts directly to body force and torque.
 
-完整公式、符号和代码对应关系见 [公式推导索引](docs/README.md)。
+The complete notation, derivations, assumptions, and source-code mappings are in the
+[mathematical documentation](docs/README.md).
 
-## 3. 系统架构
+## 3. System Architecture
 
 ```text
 Gazebo rigid body
@@ -52,49 +126,52 @@ ground truth + reference ─> trajectory_visualizer ─> Gazebo Marker Manager
 all main signals ─────────> logger_node ────────────> results/flight_log.csv
 ```
 
-控制器和 EKF 不订阅 ground-truth topic。ground truth 只用于日志、性能验证和轨迹显示。
+The EKF and controller do not subscribe to ground truth. Ground truth is used only for
+logging, validation, and trajectory visualization.
 
-## 4. 仓库结构
+## 4. Repository Layout
 
-| 路径 | 内容 |
+| Path | Purpose |
 |---|---|
-| `docker/` | ROS 2 Jazzy、Gazebo Harmonic 和 Python 依赖镜像 |
-| `scripts/` | 宿主机配置、构建、启动、绘图和可选 acados 安装脚本 |
-| `src/drone_interfaces/` | 自定义 ROS 消息 |
-| `src/drone_description/` | 独立 SDF 四旋翼模型 |
-| `src/drone_gazebo/` | Gazebo world、自编力/力矩插件、bridge、轨迹可视化 |
-| `src/drone_gnc/` | 动力学、坐标转换、传感器、EKF、轨迹、NMPC 和日志 |
-| `docs/` | `drone_gnc` 数学模型、公式推导及代码追溯 |
-| `results/` | 运行生成的 CSV 和图片；默认不进入 Git |
+| `docker/` | ROS 2 Jazzy, Gazebo Harmonic, and Python development image |
+| `scripts/` | Host setup, workspace build, launch, plotting, and optional acados installation |
+| `src/drone_interfaces/` | Custom ROS message definitions |
+| `src/drone_description/` | Independent SDF quadrotor model |
+| `src/drone_gazebo/` | Gazebo world, custom wrench plugin, bridge, and trajectory visualization |
+| `src/drone_gnc/` | Dynamics, frames, sensors, EKF, trajectory generation, NMPC, and logging |
+| `docs/` | Mathematical derivations and formula-to-code traceability |
+| `results/` | Generated CSV files and plots; ignored by Git |
 
-## 5. 宿主机准备
+## 5. Host Preparation
 
-### 5.1 平台要求
+### 5.1 Platform requirements
 
-推荐使用带 X11 桌面环境的 Linux 主机。当前 Docker Compose 配置使用：
+A Linux workstation with an X11 desktop is recommended. The current Compose configuration
+uses:
 
-- 宿主机 X11 socket：`/tmp/.X11-unix`
-- 图形设备：`/dev/dri`
-- host network
-- `video` 和 `render` 用户组
+- the host X11 socket at `/tmp/.X11-unix`;
+- direct rendering through `/dev/dri`;
+- host networking;
+- the host `video` and `render` groups.
 
-macOS、Windows 和无桌面服务器需要额外的显示转发或 Compose 配置，本仓库当前没有对这些
-平台做正式验证。
+macOS, Windows, Wayland-only systems, and headless servers require additional display
+forwarding or Compose changes and are not part of the verified configuration.
 
-### 5.2 自动安装 Docker
+### 5.2 Automated Docker setup
 
-在仓库根目录运行：
+From the repository root:
 
 ```bash
 ./scripts/bootstrap_host.sh
 ```
 
-脚本会在缺少 Docker 时安装 `docker.io` 和 `docker-compose-v2`，并将当前用户加入
-`docker` 用户组。若脚本提示重新登录，请注销并重新登录，然后再次运行同一命令。
+When Docker is absent, the script installs `docker.io` and `docker-compose-v2`, adds the
+current user to the `docker` group, and builds the image. Group membership normally requires
+logging out and back in.
 
-注意：`docker` 用户组具有较高的宿主机权限，只应向可信用户开放。
+The `docker` group grants substantial access to the host. Add only trusted accounts.
 
-### 5.3 手动检查 Docker
+### 5.3 Manual Docker checks
 
 ```bash
 docker --version
@@ -102,23 +179,23 @@ docker compose version
 docker info
 ```
 
-`docker info` 不应返回 socket permission denied。
+`docker info` must complete without a socket permission error.
 
-### 5.4 配置 X11 权限
+### 5.4 X11 permission
 
-启动 Gazebo 前执行：
+Before launching Gazebo:
 
 ```bash
 xhost +SI:localuser:"$(id -un)"
 ```
 
-仿真结束后可撤销该授权：
+Revoke the permission after the simulation:
 
 ```bash
 xhost -SI:localuser:"$(id -un)"
 ```
 
-### 5.5 检查图形设备和用户组
+### 5.5 Graphics devices and group IDs
 
 ```bash
 echo "$DISPLAY"
@@ -127,8 +204,8 @@ getent group video
 getent group render
 ```
 
-Compose 默认假定 `video` GID 为 44、`render` GID 为 990。如果宿主机不同，可以在启动前
-覆盖：
+Compose defaults to video GID 44 and render GID 990. Override them when the host uses
+different IDs:
 
 ```bash
 export LOCAL_UID="$(id -u)"
@@ -137,44 +214,45 @@ export LOCAL_VIDEO_GID="$(getent group video | cut -d: -f3)"
 export LOCAL_RENDER_GID="$(getent group render | cut -d: -f3)"
 ```
 
-## 6. 构建 Docker 镜像
+## 6. Build the Docker Image
 
-自动配置脚本会执行镜像构建。也可以手动运行：
+The bootstrap script builds the image automatically. To build it manually:
 
 ```bash
 docker compose build
 ```
 
-默认镜像名为：
+The default image name is:
 
 ```text
 ma6224-drone:jazzy-harmonic
 ```
 
-首次构建需要从网络下载 ROS 和 Python 依赖，耗时取决于网络和 Docker 缓存状态。
+The first build downloads ROS and Python dependencies and may take several minutes.
 
-## 7. 进入开发容器
+## 7. Enter the Development Container
 
 ```bash
 docker compose run --rm drone-dev
 ```
 
-容器将仓库挂载到 `/workspace`，并自动执行：
+The repository is mounted at `/workspace`. The entrypoint automatically:
 
-- `source /opt/ros/jazzy/setup.bash`
-- 激活 `/opt/drone_venv`
-- 若存在则加载 `/workspace/install/setup.bash`
+- sources `/opt/ros/jazzy/setup.bash`;
+- activates `/opt/drone_venv`;
+- sources `/workspace/install/setup.bash` when it already exists.
 
-后续没有特别说明的命令都在容器内、`/workspace` 目录执行。
+Unless explicitly stated otherwise, all remaining commands are run inside the container from
+`/workspace`.
 
-## 8. 构建 ROS 工作空间
+## 8. Build the ROS Workspace
 
 ```bash
 ./scripts/build_workspace.sh
 source install/setup.bash
 ```
 
-脚本会运行 `rosdep`，然后以 `RelWithDebInfo` 模式构建四个 package：
+The script resolves ROS dependencies and builds these packages in `RelWithDebInfo` mode:
 
 ```text
 drone_interfaces
@@ -183,164 +261,172 @@ drone_gnc
 drone_gazebo
 ```
 
-每次修改 C++、ROS 消息、launch 文件或 package 配置后都应重新构建并重新加载
-`install/setup.bash`。
+Rebuild and source `install/setup.bash` after changing C++, ROS messages, launch files, or
+package metadata.
 
-## 9. 测试
+## 9. Tests
 
-### 9.1 Python 算法测试
+### 9.1 Python algorithm tests
 
-必须使用虚拟环境解释器调用 pytest：
+Use the active virtual-environment interpreter:
 
 ```bash
 python3 -m pytest -q
 ```
 
-不要直接使用 `pytest -q`。容器中的 `/usr/bin/pytest` 使用系统 Python，可能找不到虚拟环境
-内的 CasADi，从而跳过 NMPC 测试。
+Do not invoke `pytest -q` directly. The container's `/usr/bin/pytest` uses the system Python
+and may not see CasADi from the virtual environment.
 
-### 9.2 ROS package 测试
+The current baseline is 15 passed tests with no skips.
+
+### 9.2 ROS package tests
 
 ```bash
 python3 -m colcon test --event-handlers console_direct+
 python3 -m colcon test-result --verbose
 ```
 
-当前基线应得到 15 项 Python 测试通过、0 failure、0 error、0 skipped。
+The expected result is 15 tests, 0 errors, 0 failures, and 0 skipped.
 
-### 9.3 顶层动力学 smoke test
+### 9.3 Dynamics smoke test
 
 ```bash
 PYTHONPATH=src/drone_gnc python3 scripts/main_simulation.py
 ```
 
-该测试不启动 Gazebo，用独立 RK4 模型检查悬停推力和平衡状态。
+This test does not start Gazebo. It checks the hover equilibrium using the independently
+implemented RK4 dynamics.
 
-## 10. 启动仿真
+## 10. Run the Simulation
 
 ```bash
 ./scripts/run_simulation.sh
 ```
 
-等价命令为：
+Equivalent ROS command:
 
 ```bash
 ros2 launch drone_gazebo simulation.launch.py
 ```
 
-启动内容包括：
+The launch file starts:
 
-1. Gazebo Harmonic 和课程四旋翼 SDF；
-2. IMU、NavSat、odometry 的 ROS/Gazebo bridge；
-3. 自编 rotor-wrench 插件和 actuator bridge；
-4. 传感器噪声与 bias random walk；
-5. 19 维 EKF；
-6. 分阶段任务参考；
-7. CasADi/IPOPT NMPC 和几何回退控制；
-8. Gazebo 实时轨迹带；
-9. CSV logger。
+1. Gazebo Harmonic and the course quadrotor SDF;
+2. ROS/Gazebo bridges for IMU, NavSat, and odometry;
+3. the custom rotor-wrench plugin and actuator bridge;
+4. sensor noise and bias random-walk simulation;
+5. the 19-state EKF;
+6. the phased mission-reference generator;
+7. CasADi/IPOPT NMPC and geometric fallback control;
+8. Gazebo trajectory trails;
+9. the CSV logger.
 
-### 10.1 默认任务时间线
+### 10.1 Default mission timeline
 
-| 仿真时间 | 阶段 | 参考行为 |
+| Simulation time | Phase | Reference behavior |
 |---:|---|---|
-| 0-5 s | `takeoff` | 从地面垂直起飞到 `(0, 0, -2.0 m)` |
-| 5-10 s | `yaw_align` | 保持位置并将 yaw 调整到约 53.13 deg |
-| 10 s 以后 | `figure8` | 从八字局部时间 `t=0` 直接开始跟踪 |
+| 0-5 s | `takeoff` | Rise from the ground to `(0, 0, -2.0 m)` |
+| 5-10 s | `yaw_align` | Hold position and align yaw to approximately 53.13 deg |
+| 10-70 s | `figure8` | Track the 60 s figure-8 from local trajectory time `t=0` |
+| after 70 s | `figure8` hold | Hold the final reference sample at local trajectory time `t=60 s` |
 
-八字开始时位置和 yaw 连续，但参考速度由零直接切换为
-`(0.75, 1.0, 0) m/s`；这是当前任务定义的一部分，不是额外的位置过渡曲线。
+Position and yaw are continuous when the figure-8 starts. The horizontal reference velocity
+changes directly from zero to `(0.75, 1.0, 0) m/s`, and the vertical reference acceleration
+changes from zero to `-0.03125 m/s^2`. These discontinuities are intentional: the original
+figure-8 begins directly, without an additional transition curve.
 
-### 10.2 Gazebo 轨迹显示
+### 10.2 Gazebo trajectory trails
 
-- 蓝色轨迹带：实际 ground-truth 轨迹；
-- 黄色轨迹带：参考轨迹；
-- 默认 10 Hz 采样、5 Hz 刷新；
-- 最多保存 1500 个采样点。
+- Blue thick trail: ground-truth flight path.
+- Yellow thin trail: reference path.
+- Default sampling rate: 10 Hz.
+- Default marker refresh rate: 5 Hz.
+- Maximum retained points: 1500.
 
-关闭轨迹显示：
+Disable the visualization when measuring controller-only performance:
 
 ```bash
 ros2 launch drone_gazebo simulation.launch.py show_trajectory:=false
 ```
 
-## 11. 参数配置
+## 11. Configuration
 
-主要参数集中在：
+Runtime parameters are centralized in:
 
 ```text
 src/drone_gnc/config/project.yaml
 ```
 
-参数组包括：
+The file contains:
 
-- IMU/GNSS 噪声和 bias random walk；
-- 起飞、yaw 对准和八字轨迹；
-- 质量、惯量、臂长和旋翼范围；
-- NMPC horizon、步长、权重、力矩和姿态约束；
-- 求解器迭代数与 CPU 时间上限；
-- 日志路径和轨迹显示刷新率。
+- IMU/GNSS noise and bias random walks;
+- takeoff, yaw-alignment, and figure-8 parameters;
+- mass, inertia, arm lengths, and rotor limits;
+- NMPC horizon, time step, weights, torque limits, and attitude constraints;
+- solver iteration and CPU-time limits;
+- logger and trajectory-visualizer settings.
 
-修改物理参数时必须同步核对以下三处：
+When changing physical parameters, keep these three locations consistent:
 
 1. `src/drone_gnc/config/project.yaml`
 2. `src/drone_gnc/drone_gnc/dynamics.py`
 3. `src/drone_description/models/course_quadrotor/model.sdf`
 
-参数逐项追溯见 [参数与实现追溯](docs/06_parameter_traceability.md)。
+See [parameter and implementation traceability](docs/06_parameter_traceability.md) for a
+field-by-field map.
 
-## 12. 运行结果与绘图
+## 12. Results and Plots
 
-默认日志：
+The default flight log is:
 
 ```text
 results/flight_log.csv
 ```
 
-生成报告图片：
+Generate report plots:
 
 ```bash
 python3 scripts/generate_plots.py
 ```
 
-输出包括：
+Outputs:
 
 - `results/plots/trajectory_3d.png`
 - `results/plots/ekf_position_error_2sigma.png`
 - `results/plots/rotor_thrusts.png`
 - `results/plots/solver_time.png`
 
-每次启动仿真时 logger 会覆盖现有 `flight_log.csv`。需要保留实验结果时，请在下一次启动前
-复制或重命名该文件。
+The logger overwrites `flight_log.csv` when a new simulation starts. Copy or rename a result
+before launching the next experiment when it must be retained.
 
-## 13. 主要 ROS topics
+## 13. Main ROS Topics
 
-| Topic | 消息类型 | 用途 |
+| Topic | Message type | Purpose |
 |---|---|---|
-| `/drone/imu_raw` | `sensor_msgs/Imu` | Gazebo 原始 IMU |
-| `/drone/navsat_raw` | `sensor_msgs/NavSatFix` | Gazebo 原始 NavSat |
-| `/drone/imu` | `sensor_msgs/Imu` | 加入噪声和 bias 后的 IMU |
-| `/drone/gnss/position_ned` | `drone_interfaces/PositionFix` | NED 位置观测 |
-| `/drone/state_estimate` | `drone_interfaces/State13` | EKF 对控制器公开的 13 维状态 |
-| `/drone/reference` | `drone_interfaces/TrajectoryPoint` | 任务参考 |
-| `/drone/rotor_thrusts` | `drone_interfaces/RotorThrusts` | 四旋翼推力命令 |
-| `/drone/ground_truth/state_ned` | `drone_interfaces/State13` | 日志和可视化 |
-| `/drone/nmpc/stats` | `drone_interfaces/SolverStats` | 求解耗时、状态和成本 |
+| `/drone/imu_raw` | `sensor_msgs/Imu` | Raw Gazebo IMU |
+| `/drone/navsat_raw` | `sensor_msgs/NavSatFix` | Raw Gazebo NavSat |
+| `/drone/imu` | `sensor_msgs/Imu` | IMU with configured noise and bias |
+| `/drone/gnss/position_ned` | `drone_interfaces/PositionFix` | Local NED position measurement |
+| `/drone/state_estimate` | `drone_interfaces/State13` | Public 13-state EKF estimate |
+| `/drone/reference` | `drone_interfaces/TrajectoryPoint` | Mission reference |
+| `/drone/rotor_thrusts` | `drone_interfaces/RotorThrusts` | Four rotor-thrust commands |
+| `/drone/ground_truth/state_ned` | `drone_interfaces/State13` | Logging and visualization only |
+| `/drone/nmpc/stats` | `drone_interfaces/SolverStats` | Solver timing, status, and cost |
 
-## 14. 常见问题
+## 14. Troubleshooting
 
 ### Docker daemon permission denied
 
-确认当前用户属于 `docker` 组，并在加组后重新登录：
+Confirm group membership and log in again after a group change:
 
 ```bash
 groups
 docker info
 ```
 
-### Gazebo 窗口没有出现
+### Gazebo window does not open
 
-依次检查：
+Check the display, X11 socket, and permission:
 
 ```bash
 echo "$DISPLAY"
@@ -348,11 +434,11 @@ ls -l /tmp/.X11-unix
 xhost +SI:localuser:"$(id -un)"
 ```
 
-同时确认 Compose 运行时能够访问 `/dev/dri`。
+Also verify that the container can access `/dev/dri`.
 
-### Gazebo 中没有轨迹带
+### No trajectory trails appear in Gazebo
 
-确认工作空间已重新构建，关闭旧 Gazebo 进程后重新启动：
+Rebuild the workspace, stop all old Gazebo processes, and relaunch:
 
 ```bash
 ./scripts/build_workspace.sh
@@ -360,61 +446,71 @@ source install/setup.bash
 ./scripts/run_simulation.sh
 ```
 
-启动日志中应出现 `Gazebo trajectory markers enabled`。
+The launch log should contain `Gazebo trajectory markers enabled`.
 
-### Python 能导入 NumPy，但不能导入 CasADi
+### NumPy imports successfully but CasADi does not
 
-确认使用容器内虚拟环境：
+Verify the active interpreter:
 
 ```bash
 which python3
 python3 -c "import casadi; print(casadi.__version__)"
 ```
 
-正确解释器应位于 `/opt/drone_venv/bin/python3`。
+The interpreter should be `/opt/drone_venv/bin/python3`.
 
-### 修改代码后行为没有变化
+### Changes do not affect runtime behavior
 
-重新构建并重新加载 overlay：
+Rebuild and source the overlay:
 
 ```bash
 ./scripts/build_workspace.sh
 source install/setup.bash
 ```
 
-对于正在运行的 Gazebo/C++ 节点，需要完全停止后重新启动。
+Restart Gazebo after changing C++, launch files, or installed package data.
 
-## 15. 可选 acados 支持
+## 15. Optional acados Support
 
-当前默认、已验证的 NMPC 后端是 CasADi + IPOPT。可选安装 acados：
+CasADi with IPOPT is the default and verified NMPC backend. To install acados:
 
 ```bash
 sudo ./scripts/install_acados.sh /opt/acados
 ```
 
-脚本只安装求解器。使用 acados 时仍必须由本项目代码生成状态、动力学和约束，不能导入
-acados 示例中的四旋翼动力学模型。
+The script installs only the solver. Any acados backend must still generate the state,
+dynamics, and constraints from this repository. It must not import a sample quadrotor
+dynamics model.
 
-## 16. 当前假设和已知限制
+## 16. Assumptions and Known Limitations
 
-- 需求文档没有提供 accelerometer/gyroscope bias random-walk 谱密度；YAML 中为明确记录的
-  工程假设，需要结合实验重新标定。
-- 仅使用 IMU 和 GNSS 位置时，悬停状态下绝对 yaw 不可观；当前仿真假定初始 yaw 已知。
-- 当前 EKF 使用四元数名义状态和数值 Jacobian，便于审查，但不是误差状态四元数 EKF。
-- 任务阶段按固定时间切换，不检查高度、速度和姿态是否已连续稳定。
-- NMPC 求解失败或姿态越界时使用独立实现的几何回退控制。
-- Dockerfile 中 Python 包尚未锁定精确版本；正式发布时建议增加依赖锁文件和镜像 digest。
+- The specification defines accelerometer and gyroscope bias random walks but does not give
+  their spectral densities. The YAML values are documented engineering assumptions.
+- Absolute yaw is unobservable during hover with only IMU and GNSS position measurements;
+  the simulation assumes a known initial yaw.
+- The current EKF uses a nominal quaternion inside a direct 19-dimensional covariance and a
+  numerical process Jacobian. It is not a multiplicative error-state quaternion EKF.
+- Mission phases switch at fixed times rather than waiting for verified position, velocity,
+  and attitude convergence.
+- NMPC failure or an excessive attitude/rate condition activates the independently
+  implemented geometric fallback controller.
+- The post-solve thrust slew-rate projection is not included in the NMPC prediction model.
+- Python dependencies are not pinned to exact patch versions. A release should add a lock
+  file and a container-image digest.
 
-## 17. 数学与代码文档
+## 17. Mathematical Documentation
 
-- [文档索引与符号表](docs/README.md)
-- [坐标系、状态和四元数](docs/01_frames_and_state.md)
-- [四旋翼动力学与执行器映射](docs/02_quadrotor_dynamics.md)
-- [传感器模型与 EKF](docs/03_sensor_and_ekf.md)
-- [任务与三维八字轨迹](docs/04_trajectory_generation.md)
-- [NMPC 与安全回退控制](docs/05_nmpc_and_fallback.md)
-- [参数与实现追溯](docs/06_parameter_traceability.md)
+- [Documentation index and notation](docs/README.md)
+- [Frames, state, and quaternions](docs/01_frames_and_state.md)
+- [Quadrotor dynamics and actuator mapping](docs/02_quadrotor_dynamics.md)
+- [Sensor models and EKF](docs/03_sensor_and_ekf.md)
+- [Mission and three-dimensional figure-8](docs/04_trajectory_generation.md)
+- [NMPC and safety fallback control](docs/05_nmpc_and_fallback.md)
+- [Parameter and implementation traceability](docs/06_parameter_traceability.md)
+
+The mathematical documents are currently written in Chinese to preserve the terminology used
+during model development. All equations use the same NED/FRD conventions as the source code.
 
 ## 18. License
 
-本项目使用 BSD 3-Clause License，详见 `LICENSE`。
+This project is distributed under the BSD 3-Clause License. See [LICENSE](LICENSE).
