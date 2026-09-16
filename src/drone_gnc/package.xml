@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>drone_gnc</name>
+  <version>0.1.0</version>
+  <description>Independent 13-state dynamics, 19-state EKF and constrained NMPC.</description>
+  <maintainer email="maintainer@example.com">MA6224 team</maintainer>
+  <license>BSD-3-Clause</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+  <exec_depend>drone_interfaces</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

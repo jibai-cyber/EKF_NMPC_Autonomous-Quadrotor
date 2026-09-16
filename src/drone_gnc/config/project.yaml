@@ -1,0 +1,75 @@
+sensor_simulator_node:
+  ros__parameters:
+    accel_std_mps2: 0.08
+    gyro_std_radps: 0.015
+    position_std_m: 0.02
+    # The PDF gives random-walk equations but no spectral densities. These two
+    # conservative defaults must be documented/tuned or replaced if staff provide values.
+    accel_bias_rw_std: 0.002
+    gyro_bias_rw_std: 0.0002
+    random_seed: 6224
+    reference_latitude_deg: 1.3521
+    reference_longitude_deg: 103.8198
+    reference_altitude_m: 0.0
+
+ekf_node:
+  ros__parameters:
+    accel_std_mps2: 0.08
+    gyro_std_radps: 0.015
+    position_std_m: 0.02
+    accel_bias_rw_std: 0.002
+    gyro_bias_rw_std: 0.0002
+
+trajectory_node:
+  ros__parameters:
+    initial_height_ned_m: -0.035
+    takeoff_duration_s: 5.0
+    yaw_alignment_duration_s: 5.0
+    amplitude_x_m: 3.0
+    amplitude_y_m: 2.0
+    amplitude_z_m: 0.5
+    base_height_ned_m: -2.5
+    omega_radps: 0.25
+    duration_s: 60.0
+    publish_rate_hz: 20.0
+
+nmpc_node:
+  ros__parameters:
+    mass_kg: 1.20
+    dx_m: 0.225
+    dy_m: 0.225
+    jxx_kgm2: 0.0125
+    jyy_kgm2: 0.0125
+    jzz_kgm2: 0.0220
+    moment_ratio_m: 0.015
+    rotor_min_thrust_n: 0.2
+    rotor_max_thrust_n: 5.5
+    max_tilt_deg: 35.0
+    max_body_rates_degps: [180.0, 180.0, 90.0]
+    max_roll_pitch_torque_nm: 0.05
+    max_yaw_torque_nm: 0.015
+    max_thrust_slew_nps: 40.0
+    horizon_steps: 12
+    prediction_step_s: 0.05
+    control_rate_hz: 20.0
+    ipopt_max_iterations: 80
+    ipopt_max_cpu_time_s: 0.08
+    weight_position: [20.0, 20.0, 25.0]
+    weight_velocity: [4.0, 4.0, 5.0]
+    weight_attitude: 12.0
+    weight_body_rate: [2.0, 2.0, 0.5]
+    weight_input: [0.1, 0.1, 0.1, 0.1]
+    terminal_multiplier: 4.0
+    initial_height_ned_m: -0.035
+    takeoff_duration_s: 5.0
+    yaw_alignment_duration_s: 5.0
+    amplitude_x_m: 3.0
+    amplitude_y_m: 2.0
+    amplitude_z_m: 0.5
+    base_height_ned_m: -2.5
+    omega_radps: 0.25
+    duration_s: 60.0
+
+logger_node:
+  ros__parameters:
+    output_csv: results/flight_log.csv

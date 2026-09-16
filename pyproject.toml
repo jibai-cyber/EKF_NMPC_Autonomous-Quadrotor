@@ -1,0 +1,8 @@
+[tool.pytest.ini_options]
+testpaths = ["src/drone_gnc/test"]
+pythonpath = ["src/drone_gnc"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+

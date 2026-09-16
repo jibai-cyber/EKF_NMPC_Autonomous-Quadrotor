@@ -1,0 +1,27 @@
+services:
+  drone-dev:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: ma6224-drone:jazzy-harmonic
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    group_add:
+      - "${LOCAL_VIDEO_GID:-44}"
+      - "${LOCAL_RENDER_GID:-990}"
+    network_mode: host
+    environment:
+      DISPLAY: ${DISPLAY}
+      HOME: /tmp/drone_home
+      XDG_RUNTIME_DIR: /tmp/drone_runtime
+      QT_X11_NO_MITSHM: "1"
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: graphics,utility,compute
+    volumes:
+      - .:/workspace
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    devices:
+      - /dev/dri:/dev/dri
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    command: bash
