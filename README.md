@@ -114,7 +114,15 @@ PYTHONPATH=src/drone_gnc python3 scripts/main_simulation.py
 5. 19 维 EKF；
 6. 地面起飞至八字起点、原地 yaw 对准和 3D 八字参考；
 7. CasADi/IPOPT NMPC、力矩约束和几何姿态安全恢复；
-8. CSV logger。
+8. Gazebo 实时轨迹标记和 CSV logger。
+
+Gazebo 中默认显示两条轨迹带：蓝色粗带为飞行器实际轨迹，黄色细带为参考轨迹。
+可视化节点按 10 Hz 采样、5 Hz 刷新并最多保留 1500 个点，避免轨迹无限增长。
+如需关闭可视化以测试纯控制性能：
+
+```bash
+ros2 launch drone_gazebo simulation.launch.py show_trajectory:=false
+```
 
 默认任务时间线（NED 高度为负值）：
 

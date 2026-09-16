@@ -73,3 +73,13 @@ nmpc_node:
 logger_node:
   ros__parameters:
     output_csv: results/flight_log.csv
+
+trajectory_visualizer:
+  ros__parameters:
+    sample_rate_hz: 10.0
+    publish_rate_hz: 5.0
+    max_points: 1500
+    minimum_distance_m: 0.01
+    actual_trail_width_m: 0.05
+    reference_trail_width_m: 0.025
+    marker_service: /marker

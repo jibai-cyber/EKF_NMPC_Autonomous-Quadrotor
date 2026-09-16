@@ -2,8 +2,10 @@ import os
 
 from ament_index_python.packages import get_package_prefix, get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
@@ -19,9 +21,15 @@ def generate_launch_description():
     )
     model_path = os.path.join(description_share, "models")
     venv_site_packages = "/opt/drone_venv/lib/python3.12/site-packages"
+    show_trajectory = LaunchConfiguration("show_trajectory")
 
     return LaunchDescription(
         [
+            DeclareLaunchArgument(
+                "show_trajectory",
+                default_value="true",
+                description="Draw actual and reference trajectory trails in Gazebo",
+            ),
             # ament_python console scripts use /usr/bin/python3; expose the
             # container venv packages (CasADi, NumPy) to that interpreter.
             SetEnvironmentVariable(
@@ -57,6 +65,13 @@ def generate_launch_description():
                 package="drone_gazebo",
                 executable="actuator_bridge",
                 parameters=[{"use_sim_time": True}],
+                output="screen",
+            ),
+            Node(
+                package="drone_gazebo",
+                executable="trajectory_visualizer",
+                condition=IfCondition(show_trajectory),
+                parameters=[gnc_config, {"use_sim_time": True}],
                 output="screen",
             ),
             Node(

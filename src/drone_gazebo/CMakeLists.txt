@@ -38,7 +38,11 @@ add_executable(actuator_bridge src/actuator_bridge.cpp)
 ament_target_dependencies(actuator_bridge drone_interfaces rclcpp)
 target_link_libraries(actuator_bridge gz-msgs10::gz-msgs10 gz-transport13::core)
 
-install(TARGETS rotor_wrench_system actuator_bridge
+add_executable(trajectory_visualizer src/trajectory_visualizer.cpp)
+ament_target_dependencies(trajectory_visualizer drone_interfaces rclcpp)
+target_link_libraries(trajectory_visualizer gz-msgs10::gz-msgs10 gz-transport13::core)
+
+install(TARGETS rotor_wrench_system actuator_bridge trajectory_visualizer
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME}
