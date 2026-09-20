@@ -13,6 +13,7 @@
 5. [NMPC 与安全回退控制](05_nmpc_and_fallback.md)
 6. [参数与实现追溯](06_parameter_traceability.md)
 7. [Rubric 验收报告](07_acceptance_report.md)
+8. [本版本改进记录与 X 轴周期误差分析](08_version_improvements_and_x_error_analysis.md)
 
 ## 统一符号
 
@@ -108,5 +109,5 @@ $$
 - 状态转移 Jacobian 使用中心差分数值计算；
 - 悬停时仅凭 IMU 和 GNSS 位置不能观测绝对 yaw；
 - 当前传感器与 EKF 均忽略 IMU bias，只考虑题目指定的白噪声；
-- 任务阶段按固定时间切换，尚未实现稳定驻留条件；
-- NMPC 后处理中的推力 slew-rate 投影没有进入预测模型约束。
+- 八字阶段使用估计状态门控和连续驻留条件释放任务时钟；
+- NMPC 已在首步和完整预测域内约束推力 slew-rate，求解后投影作为安全保护保留。

@@ -213,20 +213,31 @@ $$
    $\mathbf p_f=[0,0,-2.0]^T$，同样以零速度、零加速度结束；
 2. `yaw_align`，$T_{\mathrm{to}}\le t<T_{\mathrm{to}}+T_\psi$：位置保持在
    $\mathbf p_f$，用五次多项式从 $\psi=0$ 转到 $\psi_r(0)$；
-3. `figure8`，$t\ge T_{\mathrm{to}}+T_\psi$：使用
-   $t_f=t-T_{\mathrm{to}}-T_\psi$ 直接计算原始八字公式。
+3. `figure8`：只有估计状态连续满足入口条件 0.5 s 后才释放，并对解析八字的相位速度
+   使用 3 s 半余弦渐入。
 
-当前 $T_{\mathrm{to}}=5$ s、$T_\psi=5$ s。起飞阶段和 yaw 阶段均平滑，但从
-`yaw_align` 切换到 `figure8` 时，参考水平速度从零直接变为
-$[0.75,1.0]^T$ m/s，参考垂向加速度从零变为 $-0.03125$ m/s²。这是用户要求
-“不对八字入口做多项式过渡”的直接结果，不是计算错误。
+入口门控要求位置误差不超过 0.12 m、速度范数不超过 0.20 m/s、yaw 误差不超过 5°、
+角速度范数不超过 10°/s。未满足时任务时钟停在 `yaw_align` 末端，因而强扰动不会触发
+提前切换。
 
-`lemniscate_reference` 将局部时间限制在 $[0,60]$ s。因此八字阶段运行 60 s 后不再周期
-延拓，而是保持 $t_f=60$ s 的最后一个参考状态。以默认任务时间计算，对应总任务时间
-$t\ge70$ s。
+为保持空间八字公式不变，渐入只修改局部路径时间 $s(t)$。当 $0\le t<T_r$：
 
-阶段按时间切换，并不检查实际位置、姿态或速度是否已经稳定；因此在强扰动下可能提前进入
-下一阶段。这一点应在后续版本中改为带驻留时间的状态条件切换。
+$$
+s(t)=\frac12\left[t-\frac{T_r}{\pi}\sin\left(\frac{\pi t}{T_r}\right)\right],
+$$
+
+$$
+\dot s(t)=\frac12\left[1-\cos\left(\frac{\pi t}{T_r}\right)\right],\qquad
+\ddot s(t)=\frac{\pi}{2T_r}\sin\left(\frac{\pi t}{T_r}\right).
+$$
+
+当 $t\ge T_r$ 时，$s=t-T_r/2$、$\dot s=1$、$\ddot s=0$。参考导数通过链式法则
+$\dot{\mathbf p}=\mathbf p'(s)\dot s$、
+$\ddot{\mathbf p}=\mathbf p''(s)\dot s^2+\mathbf p'(s)\ddot s$ 得到。因此入口的位置、
+速度和加速度连续，且没有拟合新的 Cartesian 过渡曲线。
+
+当前 $T_{\mathrm{to}}=5$ s、$T_\psi=5$ s、$T_r=3$ s。最终仿真在 10.52 s 通过状态
+门控；入口 5 s 三维 RMSE 为 0.0490 m，最大三维误差为 0.0708 m。
 
 **代码对应**
 

@@ -30,6 +30,7 @@ class NmpcConfig:
     max_body_rates_degps: tuple[float, float, float] = (180.0, 180.0, 90.0)
     max_roll_pitch_torque_nm: float = 0.05
     max_yaw_torque_nm: float = 0.015
+    max_thrust_slew_nps: float = 40.0
     ipopt_max_iterations: int = 80
     ipopt_max_cpu_time_s: float = 0.08
     weights: NmpcWeights = field(default_factory=NmpcWeights)
@@ -153,11 +154,18 @@ class NmpcController:
         horizon = self.config.horizon_steps
         states = ca.SX.sym("X", self.state_size, horizon + 1)
         controls = ca.SX.sym("U", self.input_size, horizon)
-        # Parameter vector: current state, followed by N+1 full reference states.
+        # Parameter vector: current state, last applied input, then N+1 references.
         parameters = ca.SX.sym(
-            "P", self.state_size + self.state_size * (horizon + 1)
+            "P",
+            self.state_size
+            + self.input_size
+            + self.state_size * (horizon + 1),
         )
         current_state = parameters[0 : self.state_size]
+        previous_control = parameters[
+            self.state_size : self.state_size + self.input_size
+        ]
+        reference_offset = self.state_size + self.input_size
 
         constraints = [states[:, 0] - current_state]
         lower_constraints = [np.zeros(self.state_size)]
@@ -166,7 +174,7 @@ class NmpcController:
         tilt_limit = np.deg2rad(self.config.max_tilt_deg)
 
         for step in range(horizon):
-            reference_start = self.state_size + step * self.state_size
+            reference_start = reference_offset + step * self.state_size
             reference = parameters[reference_start : reference_start + self.state_size]
             objective += self._stage_cost(states[:, step], controls[:, step], reference)
             constraints.append(
@@ -196,6 +204,15 @@ class NmpcController:
                     ]
                 )
             )
+            control_delta = (
+                controls[:, step] - previous_control
+                if step == 0
+                else controls[:, step] - controls[:, step - 1]
+            )
+            constraints.append(control_delta)
+            maximum_delta = self.config.max_thrust_slew_nps * self.config.step_s
+            lower_constraints.append(-np.ones(self.input_size) * maximum_delta)
+            upper_constraints.append(np.ones(self.input_size) * maximum_delta)
 
         terminal_reference = parameters[-self.state_size :]
         objective += self.config.weights.terminal_multiplier * self._stage_cost(
@@ -238,7 +255,46 @@ class NmpcController:
         self._lower_constraints = np.concatenate(lower_constraints)
         self._upper_constraints = np.concatenate(upper_constraints)
 
-    def solve(self, current_state: np.ndarray, reference_horizon: np.ndarray) -> dict:
+    def _shifted_warm_start(
+        self, current_state: np.ndarray, default_guess: np.ndarray
+    ) -> np.ndarray:
+        """Shift the previous state/control sequence by one receding-horizon step."""
+        if self._last_solution is None or self._last_solution.shape != default_guess.shape:
+            return default_guess
+        horizon = self.config.horizon_steps
+        state_count = self.state_size * (horizon + 1)
+        old_states = self._last_solution[:state_count].reshape(
+            (self.state_size, horizon + 1), order="F"
+        )
+        old_controls = self._last_solution[state_count:].reshape(
+            (self.input_size, horizon), order="F"
+        )
+        shifted_controls = np.column_stack(
+            (old_controls[:, 1:], old_controls[:, -1])
+        )
+        shifted_states = np.empty_like(old_states)
+        shifted_states[:, 0] = current_state
+        if horizon > 1:
+            shifted_states[:, 1:horizon] = old_states[:, 2 : horizon + 1]
+        shifted_states[:, horizon] = rk4_step(
+            old_states[:, horizon],
+            shifted_controls[:, horizon - 1],
+            self.config.step_s,
+            self.vehicle,
+        )
+        return np.concatenate(
+            (
+                shifted_states.reshape(-1, order="F"),
+                shifted_controls.reshape(-1, order="F"),
+            )
+        )
+
+    def solve(
+        self,
+        current_state: np.ndarray,
+        reference_horizon: np.ndarray,
+        previous_thrusts_n: np.ndarray | None = None,
+    ) -> dict:
         current_state = np.asarray(current_state, dtype=float).copy()
         current_state[6:10] = normalize_quaternion(current_state[6:10])
         references = np.asarray(reference_horizon, dtype=float).copy()
@@ -249,6 +305,21 @@ class NmpcController:
             references[step, 6:10] = normalize_quaternion(references[step, 6:10])
 
         hover_control = np.full(4, self.vehicle.hover_thrust_per_rotor_n)
+        previous_control = (
+            hover_control.copy()
+            if previous_thrusts_n is None
+            else np.asarray(previous_thrusts_n, dtype=float).copy()
+        )
+        if previous_control.shape != (self.input_size,):
+            raise ValueError(
+                f"Expected previous thrust vector ({self.input_size},), "
+                f"got {previous_control.shape}"
+            )
+        previous_control = np.clip(
+            previous_control,
+            self.vehicle.rotor_min_thrust_n,
+            self.vehicle.rotor_max_thrust_n,
+        )
         rollout = [current_state.copy()]
         for _ in range(self.config.horizon_steps):
             rollout.append(
@@ -260,8 +331,7 @@ class NmpcController:
             self.config.horizon_steps,
         )
         initial_guess = np.concatenate((state_guess, input_guess))
-        if self._last_solution is not None and self._last_solution.shape == initial_guess.shape:
-            initial_guess = self._last_solution
+        initial_guess = self._shifted_warm_start(current_state, initial_guess)
 
         solution = self._solver(
             x0=initial_guess,
@@ -269,7 +339,7 @@ class NmpcController:
             ubx=self._upper_bounds,
             lbg=self._lower_constraints,
             ubg=self._upper_constraints,
-            p=np.concatenate((current_state, references.reshape(-1))),
+            p=np.concatenate((current_state, previous_control, references.reshape(-1))),
         )
         decision = np.asarray(solution["x"]).reshape(-1)
         state_count = self.state_size * (self.config.horizon_steps + 1)
@@ -288,6 +358,7 @@ class NmpcController:
                 self.vehicle.rotor_min_thrust_n,
                 self.vehicle.rotor_max_thrust_n,
             ),
+            "control_sequence": controls.T.copy(),
             "predicted_states": predicted_states,
             "success": success,
             "status": str(statistics.get("return_status", "unknown")),

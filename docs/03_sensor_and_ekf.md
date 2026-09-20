@@ -181,14 +181,33 @@ $$
 P_{k+1}^-=F_kP_k^+F_k^T+Q_k.
 $$
 
-当前实现构造 13 维对角过程噪声：
+当前实现先对 IMU 输入计算离散过程 Jacobian
 
 $$
-Q_k=\operatorname{diag}(q_p,q_v,q_q,q_\omega)\Delta t.
+G_k=\frac{\partial f_d}{\partial[\mathbf f_m^T\ \boldsymbol\omega_m^T]^T},
 $$
 
-速度、姿态和角速度项分别由配置的 IMU 白噪声标准差平方得到；位置使用很小的正则噪声。
-该 $Q_k$ 是工程离散近似，不是由完整连续噪声输入矩阵严格离散得到。
+并传播实际离散测量噪声：
+
+$$
+Q_{\mathrm{imu},k}=G_k\operatorname{diag}
+(\sigma_a^2I_3,\sigma_g^2I_3)G_k^T.
+$$
+
+因此位置—速度、姿态—角速度之间由同一 IMU 样本造成的相关项会被保留。对未建模加速度
+再使用连续白噪声的定加速度精确离散。令
+$S_a=\operatorname{diag}(s_N^2,s_E^2,s_D^2)$，则
+
+$$
+Q_{pv}=\begin{bmatrix}
+S_a\Delta t^3/3&S_a\Delta t^2/2\\
+S_a\Delta t^2/2&S_a\Delta t
+\end{bmatrix}.
+$$
+
+当前 $[s_N,s_E,s_D]=[0.50,0.08,0.08]$ m/s²/$\sqrt{\mathrm{Hz}}$。North 分量根据
+验收创新一致性整定；修改前 X 轴 $\pm2\sigma$ 覆盖率为 82.42%，当前完整仿真提高到
+92.09%，同时 Y/Z 保持在 97% 以上。该参数属于估计器工程参数，不是飞行器物理参数。
 
 ## 8. GNSS 位置更新
 

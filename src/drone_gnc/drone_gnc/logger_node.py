@@ -18,6 +18,7 @@ class LoggerNode(Node):
         self.writer.writerow(
             [
                 "time_s",
+                "reference_time_s",
                 *[f"estimate_{name}" for name in self.state_names()],
                 *[f"sigma_{name}" for name in self.state_names()],
                 *[f"truth_{name}" for name in self.state_names()],
@@ -35,6 +36,7 @@ class LoggerNode(Node):
         )
         self.truth = [float("nan")] * 13
         self.reference = [float("nan")] * 13
+        self.reference_time_s = float("nan")
         self.thrusts = [float("nan")] * 4
         self.solver_stats = [float("nan"), float("nan"), -1, False, "not_started"]
         self.create_subscription(State13, "/drone/state_estimate", self.estimate_callback, 10)
@@ -71,6 +73,7 @@ class LoggerNode(Node):
         self.writer.writerow(
             [
                 time_s,
+                self.reference_time_s,
                 *self.flatten_state(message),
                 *standard_deviations,
                 *self.truth,
@@ -85,6 +88,7 @@ class LoggerNode(Node):
         self.truth = self.flatten_state(message)
 
     def reference_callback(self, message: TrajectoryPoint) -> None:
+        self.reference_time_s = float(message.time_from_start_s)
         self.reference = [
             *message.position_ned_m,
             *message.velocity_ned_mps,

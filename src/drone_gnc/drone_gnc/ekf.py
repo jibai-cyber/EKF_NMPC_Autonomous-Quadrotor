@@ -12,6 +12,7 @@ class EkfNoise:
     accel_std_mps2: float = 0.08
     gyro_std_radps: float = 0.015
     position_std_m: float = 0.02
+    model_accel_noise_density_ned: tuple[float, float, float] = (0.50, 0.08, 0.08)
 
 
 class QuadrotorEkf:
@@ -83,12 +84,49 @@ class QuadrotorEkf:
             )
             transition[:, index] = (plus - minus) / (2.0 * epsilon)
 
-        process_diagonal = np.zeros(self.state_size)
-        process_diagonal[0:3] = 1e-8
-        process_diagonal[3:6] = self.noise.accel_std_mps2**2
-        process_diagonal[6:10] = self.noise.gyro_std_radps**2 * 0.25
-        process_diagonal[10:13] = self.noise.gyro_std_radps**2
-        process_noise = np.diag(process_diagonal) * dt_s
+        # Discrete IMU measurement noise is propagated through the actual process
+        # step so that position/velocity, attitude, and body-rate correlations are
+        # retained instead of being approximated by unrelated diagonal entries.
+        input_jacobian = np.zeros((self.state_size, 6))
+        nominal_input = np.concatenate((accel_frd_mps2, gyro_frd_radps))
+        for index in range(6):
+            perturbation = np.zeros(6)
+            perturbation[index] = epsilon
+            plus = self._process_step(
+                previous,
+                nominal_input[0:3] + perturbation[0:3],
+                nominal_input[3:6] + perturbation[3:6],
+                dt_s,
+            )
+            minus = self._process_step(
+                previous,
+                nominal_input[0:3] - perturbation[0:3],
+                nominal_input[3:6] - perturbation[3:6],
+                dt_s,
+            )
+            input_jacobian[:, index] = (plus - minus) / (2.0 * epsilon)
+        measurement_variances = np.array(
+            [self.noise.accel_std_mps2**2] * 3
+            + [self.noise.gyro_std_radps**2] * 3
+        )
+        process_noise = (
+            input_jacobian
+            @ np.diag(measurement_variances)
+            @ input_jacobian.T
+        )
+
+        # Continuous white-acceleration model error uses the exact constant-
+        # acceleration discretization.  The larger North component is an
+        # empirical consistency correction for the observed X-axis residuals.
+        model_density = np.asarray(
+            self.noise.model_accel_noise_density_ned, dtype=float
+        )
+        model_covariance = np.diag(model_density**2)
+        process_noise[0:3, 0:3] += model_covariance * dt_s**3 / 3.0
+        process_noise[0:3, 3:6] += model_covariance * dt_s**2 / 2.0
+        process_noise[3:6, 0:3] += model_covariance * dt_s**2 / 2.0
+        process_noise[3:6, 3:6] += model_covariance * dt_s
+        process_noise += np.eye(self.state_size) * 1e-12
         self.covariance = transition @ self.covariance @ transition.T + process_noise
         self._stabilize_covariance()
 

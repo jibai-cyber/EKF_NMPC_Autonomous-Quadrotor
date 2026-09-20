@@ -52,10 +52,19 @@ def add_derived_columns(data: pd.DataFrame, configuration: dict) -> pd.DataFrame
     controller = configuration["nmpc_node"]["ros__parameters"]
     takeoff_end = float(trajectory["takeoff_duration_s"])
     figure8_start = takeoff_end + float(trajectory["yaw_alignment_duration_s"])
-    figure8_end = figure8_start + float(trajectory["duration_s"])
+    figure8_end = (
+        figure8_start
+        + float(trajectory["duration_s"])
+        + 0.5 * float(trajectory.get("figure8_entry_ramp_duration_s", 0.0))
+    )
+    phase_time = (
+        data.reference_time_s
+        if "reference_time_s" in data.columns
+        else data.time_s
+    )
 
     data["mission_phase"] = np.select(
-        [data.time_s < takeoff_end, data.time_s < figure8_start, data.time_s <= figure8_end],
+        [phase_time < takeoff_end, phase_time < figure8_start, phase_time <= figure8_end],
         ["takeoff", "yaw_align", "figure8"],
         default="hold",
     )
@@ -100,8 +109,17 @@ def generate_plots(data: pd.DataFrame, output: Path, configuration: dict) -> Non
     controller = configuration["nmpc_node"]["ros__parameters"]
     takeoff_end = float(trajectory["takeoff_duration_s"])
     figure8_start = takeoff_end + float(trajectory["yaw_alignment_duration_s"])
-    figure8_end = figure8_start + float(trajectory["duration_s"])
-    mission_data = data.loc[data.time_s <= figure8_end]
+    figure8_end = (
+        figure8_start
+        + float(trajectory["duration_s"])
+        + 0.5 * float(trajectory.get("figure8_entry_ramp_duration_s", 0.0))
+    )
+    phase_time = (
+        data.reference_time_s
+        if "reference_time_s" in data.columns
+        else data.time_s
+    )
+    mission_data = data.loc[phase_time <= figure8_end]
     figure8_data = data.loc[data.mission_phase == "figure8"]
 
     figure = plt.figure(figsize=(9, 7))
@@ -318,6 +336,21 @@ def generate_acceptance_outputs(
         add("constraints", "maximum_rotor_thrust", float(np.max(thrust)), "N")
         violations = (thrust < thrust_min - 1e-9) | (thrust > thrust_max + 1e-9)
         add("constraints", "rotor_thrust_violation_count", int(np.sum(violations)), "samples")
+        applied_steps = np.abs(np.diff(thrust, axis=0))
+        maximum_step = (
+            float(np.max(applied_steps)) if applied_steps.size else 0.0
+        )
+        step_limit = float(controller["max_thrust_slew_nps"]) / float(
+            controller["control_rate_hz"]
+        )
+        add("constraints", "maximum_applied_thrust_step", maximum_step, "N/update")
+        add("constraints", "thrust_step_limit", step_limit, "N/update")
+        add(
+            "constraints",
+            "thrust_slew_violation_count",
+            int(np.sum(applied_steps > step_limit + 1e-9)),
+            "samples",
+        )
 
     torque_limits = {
         "x": float(controller["max_roll_pitch_torque_nm"]),

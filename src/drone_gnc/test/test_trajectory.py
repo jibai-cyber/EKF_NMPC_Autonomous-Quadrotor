@@ -5,6 +5,7 @@ from drone_gnc.trajectory import (
     TrajectoryParameters,
     lemniscate_reference,
     mission_reference,
+    smooth_lemniscate_reference,
 )
 
 
@@ -41,7 +42,7 @@ def test_mission_takes_off_to_figure8_start_then_aligns_yaw():
     assert 0.0 < alignment["yaw"] < figure8_start["yaw"]
 
 
-def test_mission_starts_figure8_directly_after_yaw_alignment():
+def test_mission_starts_figure8_with_continuous_position_velocity_and_acceleration():
     parameters = MissionParameters()
     figure8_start_s = (
         parameters.takeoff_duration_s
@@ -49,13 +50,28 @@ def test_mission_starts_figure8_directly_after_yaw_alignment():
     )
     just_before = mission_reference(figure8_start_s - 1e-6, parameters)
     mission_start = mission_reference(figure8_start_s, parameters)
-    direct_start = lemniscate_reference(0.0, parameters.trajectory)
-    np.testing.assert_allclose(just_before["position"], direct_start["position"])
+    geometric_start = lemniscate_reference(0.0, parameters.trajectory)
+    np.testing.assert_allclose(just_before["position"], geometric_start["position"])
     np.testing.assert_allclose(just_before["velocity"], np.zeros(3), atol=1e-12)
-    np.testing.assert_allclose(mission_start["state"], direct_start["state"], atol=1e-12)
+    np.testing.assert_allclose(mission_start["position"], geometric_start["position"])
+    np.testing.assert_allclose(mission_start["velocity"], np.zeros(3), atol=1e-12)
     np.testing.assert_allclose(
-        mission_start["acceleration"], direct_start["acceleration"], atol=1e-12
+        mission_start["acceleration"], np.zeros(3), atol=1e-12
     )
+    np.testing.assert_allclose(mission_start["yaw"], geometric_start["yaw"])
+
+
+def test_smooth_figure8_reaches_nominal_path_rate_without_changing_geometry():
+    parameters = TrajectoryParameters()
+    ramp_duration_s = 3.0
+    ramp_end = smooth_lemniscate_reference(
+        ramp_duration_s, parameters, ramp_duration_s
+    )
+    geometric = lemniscate_reference(0.5 * ramp_duration_s, parameters)
+    np.testing.assert_allclose(ramp_end["position"], geometric["position"])
+    np.testing.assert_allclose(ramp_end["velocity"], geometric["velocity"])
+    np.testing.assert_allclose(ramp_end["acceleration"], geometric["acceleration"])
+    assert ramp_end["path_time_rate"] == 1.0
 
 
 def test_figure8_returns_to_start_after_common_period():

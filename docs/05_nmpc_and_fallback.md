@@ -156,6 +156,25 @@ $$
 这些力矩上限是当前控制器配置，不是课程 PDF 给出的飞行器物理参数。动力学本身仍由四旋翼
 推力映射产生力矩。
 
+### 3.5 推力变化率
+
+上一周期实际发布的推力 $\mathbf u_{-1}$ 作为 NLP 参数。预测域内直接施加
+
+$$
+-\dot T_{\max}\Delta t\le
+\mathbf u_0-\mathbf u_{-1}\le
+\dot T_{\max}\Delta t,
+$$
+
+$$
+-\dot T_{\max}\Delta t\le
+\mathbf u_k-\mathbf u_{k-1}\le
+\dot T_{\max}\Delta t.
+$$
+
+当前 $\dot T_{\max}=40$ N/s、$\Delta t=0.05$ s，即每个预测步每个旋翼最多变化 2 N。
+求解后的 `condition_rotor_thrusts` 继续保留，作为求解失败、回退控制和数值误差的安全层。
+
 **代码对应**
 
 | 文件 | 函数/位置 | 当前行号 | 实现 |
@@ -204,13 +223,15 @@ $$
 
 IPOPT 当前限制为最多 80 次迭代、每次求解最多 0.08 s，容差为 $10^{-4}$。第一次求解以
 悬停输入滚动 13 维动力学，得到状态初猜；输入初猜全部取 $\mathbf u_h$。若上次求解成功，
-下一周期直接复用上次完整决策向量：
+下一周期将上次最优状态和控制序列向前移动一个预测步：
 
 $$
-\mathbf z_k^{(0)}=\mathbf z_{k-1}^\star.
+\mathbf U_k^{(0)}=[\mathbf u_{1|k-1}^\star,\ldots,
+\mathbf u_{N-1|k-1}^\star,\mathbf u_{N-1|k-1}^\star].
 $$
 
-当前复用方式没有把预测序列向前 shift 一步，属于基础 warm start。
+状态序列同样前移，首项由当前估计状态覆盖，末项使用最后控制量再传播一步。这是标准的
+receding-horizon shifted warm start。
 
 **代码对应**
 
@@ -421,10 +442,7 @@ $$
 
 ## 11. 当前实现边界
 
-- `condition_rotor_thrusts` 的推力变化率限制在 NMPC 求解后执行，预测模型没有考虑它；
-- warm start 复用旧决策变量，但未进行 receding-horizon shift；
 - 回退控制增益和安全阈值是工程参数，尚未由 Lyapunov 证明或系统辨识整定；
 - NMPC 不显式估计风、气动阻力或电机一阶动态；
-- 当前阶段切换由固定时间驱动，不根据实际稳定状态触发。
 
 这些限制不会改变上述公式与代码的对应关系，但应在性能评价和后续改进中明确说明。

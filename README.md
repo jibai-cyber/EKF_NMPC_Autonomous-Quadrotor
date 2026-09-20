@@ -336,7 +336,7 @@ The launch file starts:
 |---:|---|---|
 | 0-5 s | `takeoff` | Rise from the ground to `(0, 0, -2.0 m)` |
 | 5-10 s | `yaw_align` | Hold position and align yaw to approximately 53.13 deg |
-| 10-70 s | `figure8` | Track the 60 s figure-8 from local trajectory time `t=0` |
+| after state gate | `figure8` | Track the analytic figure-8 with a 3 s phase-rate ramp |
 | after 70 s | `figure8` hold | Hold the final reference sample at local trajectory time `t=60 s` |
 
 Position and yaw are continuous when the figure-8 starts. The horizontal reference velocity
@@ -509,7 +509,7 @@ dynamics model.
   and attitude convergence.
 - NMPC failure or an excessive attitude/rate condition activates the independently
   implemented geometric fallback controller.
-- The post-solve thrust slew-rate projection is not included in the NMPC prediction model.
+- Rotor thrust slew-rate is constrained inside the NMPC horizon; the post-solve projection remains as a safety layer.
 - Python dependencies are not pinned to exact patch versions. A release should add a lock
   file and a container-image digest.
 

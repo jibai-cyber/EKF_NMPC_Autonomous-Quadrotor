@@ -20,6 +20,7 @@ class MissionParameters:
     initial_height_ned_m: float = -0.035
     takeoff_duration_s: float = 5.0
     yaw_alignment_duration_s: float = 5.0
+    figure8_entry_ramp_duration_s: float = 3.0
     trajectory: TrajectoryParameters = field(default_factory=TrajectoryParameters)
 
 
@@ -108,10 +109,15 @@ def _quintic_segment(
     return position, velocity, acceleration
 
 
-def lemniscate_reference(
-    time_s: float, parameters: TrajectoryParameters = TrajectoryParameters()
+def _lemniscate_reference_with_time_scaling(
+    output_time_s: float,
+    phase_time_s: float,
+    phase_rate: float,
+    phase_acceleration: float,
+    parameters: TrajectoryParameters,
 ) -> dict[str, np.ndarray | float]:
-    t = float(np.clip(time_s, 0.0, parameters.duration_s))
+    """Evaluate the analytic path with derivatives from an arbitrary time scaling."""
+    t = float(np.clip(phase_time_s, 0.0, parameters.duration_s))
     w = parameters.omega_radps
     ax = parameters.amplitude_x_m
     ay = parameters.amplitude_y_m
@@ -124,31 +130,89 @@ def lemniscate_reference(
             parameters.base_height_ned_m + az * np.cos(w * t),
         ]
     )
-    velocity = np.array(
+    path_velocity = np.array(
         [
             ax * w * np.cos(w * t),
             2.0 * ay * w * np.cos(2.0 * w * t),
             -az * w * np.sin(w * t),
         ]
     )
-    acceleration = np.array(
+    path_acceleration = np.array(
         [
             -ax * w * w * np.sin(w * t),
             -4.0 * ay * w * w * np.sin(2.0 * w * t),
             -az * w * w * np.cos(w * t),
         ]
     )
+    velocity = path_velocity * phase_rate
+    acceleration = (
+        path_acceleration * phase_rate**2
+        + path_velocity * phase_acceleration
+    )
 
-    yaw = float(np.arctan2(velocity[1], velocity[0]))
-    denominator = velocity[0] ** 2 + velocity[1] ** 2
+    # Heading follows the geometric tangent even when the time scale starts at rest.
+    yaw = float(np.arctan2(path_velocity[1], path_velocity[0]))
+    denominator = path_velocity[0] ** 2 + path_velocity[1] ** 2
     yaw_rate = 0.0
     if denominator > 1e-10:
         yaw_rate = float(
-            (velocity[0] * acceleration[1] - velocity[1] * acceleration[0])
+            (
+                path_velocity[0] * path_acceleration[1]
+                - path_velocity[1] * path_acceleration[0]
+            )
             / denominator
+            * phase_rate
         )
 
-    return _state_reference(t, position, velocity, acceleration, yaw, yaw_rate, "figure8")
+    result = _state_reference(
+        output_time_s, position, velocity, acceleration, yaw, yaw_rate, "figure8"
+    )
+    result["path_time_s"] = t
+    result["path_time_rate"] = float(phase_rate)
+    return result
+
+
+def lemniscate_reference(
+    time_s: float, parameters: TrajectoryParameters = TrajectoryParameters()
+) -> dict[str, np.ndarray | float]:
+    t = float(np.clip(time_s, 0.0, parameters.duration_s))
+    return _lemniscate_reference_with_time_scaling(t, t, 1.0, 0.0, parameters)
+
+
+def smooth_lemniscate_reference(
+    time_s: float,
+    parameters: TrajectoryParameters = TrajectoryParameters(),
+    ramp_duration_s: float = 3.0,
+) -> dict[str, np.ndarray | float]:
+    """Enter the same analytic path with continuous velocity and acceleration.
+
+    A half-cosine phase-rate ramp changes only the path timing.  The spatial
+    lemniscate is unchanged and no Cartesian transition curve is fitted.
+    """
+    elapsed = max(float(time_s), 0.0)
+    ramp = float(ramp_duration_s)
+    if ramp <= 0.0:
+        return lemniscate_reference(elapsed, parameters)
+    if elapsed < ramp:
+        angle = np.pi * elapsed / ramp
+        phase_time = 0.5 * (elapsed - ramp * np.sin(angle) / np.pi)
+        phase_rate = 0.5 * (1.0 - np.cos(angle))
+        phase_acceleration = 0.5 * np.pi * np.sin(angle) / ramp
+    else:
+        phase_time = elapsed - 0.5 * ramp
+        phase_rate = 1.0
+        phase_acceleration = 0.0
+    if phase_time >= parameters.duration_s:
+        phase_time = parameters.duration_s
+        phase_rate = 0.0
+        phase_acceleration = 0.0
+    return _lemniscate_reference_with_time_scaling(
+        elapsed,
+        phase_time,
+        phase_rate,
+        phase_acceleration,
+        parameters,
+    )
 
 
 def mission_reference(
@@ -202,6 +266,10 @@ def mission_reference(
         reference["yaw_acceleration"] = float(yaw_acceleration)
         return reference
 
-    result = lemniscate_reference(time - figure8_start_s, parameters.trajectory)
+    result = smooth_lemniscate_reference(
+        time - figure8_start_s,
+        parameters.trajectory,
+        parameters.figure8_entry_ramp_duration_s,
+    )
     result["time_s"] = time
     return result

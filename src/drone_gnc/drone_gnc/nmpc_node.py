@@ -61,6 +61,9 @@ class NmpcNode(Node):
                 "max_roll_pitch_torque_nm", 0.05
             ).value,
             max_yaw_torque_nm=self.declare_parameter("max_yaw_torque_nm", 0.015).value,
+            max_thrust_slew_nps=self.declare_parameter(
+                "max_thrust_slew_nps", 40.0
+            ).value,
             ipopt_max_iterations=self.declare_parameter("ipopt_max_iterations", 80).value,
             ipopt_max_cpu_time_s=self.declare_parameter("ipopt_max_cpu_time_s", 0.08).value,
             weights=weights,
@@ -81,6 +84,9 @@ class NmpcNode(Node):
             yaw_alignment_duration_s=self.declare_parameter(
                 "yaw_alignment_duration_s", 5.0
             ).value,
+            figure8_entry_ramp_duration_s=self.declare_parameter(
+                "figure8_entry_ramp_duration_s", 3.0
+            ).value,
             trajectory=trajectory,
         )
 
@@ -94,9 +100,6 @@ class NmpcNode(Node):
         self.create_subscription(TrajectoryPoint, "/drone/reference", self.reference_callback, 10)
         control_rate_hz = self.declare_parameter("control_rate_hz", 20.0).value
         self.control_step_s = 1.0 / control_rate_hz
-        self.max_thrust_slew_nps = self.declare_parameter(
-            "max_thrust_slew_nps", 40.0
-        ).value
         self.previous_thrusts = np.full(4, self.vehicle.hover_thrust_per_rotor_n)
         self.safety_recovery_active = False
         self.timer = self.create_timer(self.control_step_s, self.control_callback)
@@ -140,7 +143,11 @@ class NmpcNode(Node):
             }
         else:
             try:
-                solution = self.controller.solve(self.current_state, reference_horizon)
+                solution = self.controller.solve(
+                    self.current_state,
+                    reference_horizon,
+                    self.previous_thrusts,
+                )
                 thrusts = solution["thrusts_n"]
                 elapsed_ms = (time.perf_counter() - started) * 1000.0
                 if not solution["success"]:
@@ -177,7 +184,7 @@ class NmpcNode(Node):
             self.vehicle,
             self.config.max_roll_pitch_torque_nm,
             self.config.max_yaw_torque_nm,
-            self.max_thrust_slew_nps,
+            self.config.max_thrust_slew_nps,
         )
         self.previous_thrusts = thrusts
 
