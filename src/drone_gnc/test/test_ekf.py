@@ -10,7 +10,6 @@ def test_noise_model_contains_only_white_noise_terms():
         "accel_std_mps2",
         "gyro_std_radps",
         "position_std_m",
-        "model_accel_noise_density_ned",
     ]
 
 
@@ -42,10 +41,20 @@ def test_gnss_update_reduces_position_uncertainty():
     assert np.all(after < before)
 
 
-def test_process_noise_retains_position_velocity_correlation():
+def test_simple_process_noise_is_diagonal_with_expected_variance_rates():
     filter_ = QuadrotorEkf()
     filter_.initialize_position(np.zeros(3))
+    filter_.covariance[:] = 0.0
     filter_.predict(np.array([0.0, 0.0, -9.81]), np.zeros(3), 0.01)
-    assert filter_.covariance[0, 3] > 0.0
-    assert filter_.covariance[1, 4] > 0.0
-    assert filter_.covariance[2, 5] > 0.0
+    expected = np.array(
+        [1e-8] * 3
+        + [0.08**2] * 3
+        + [0.25 * 0.015**2] * 4
+        + [0.015**2] * 3
+    ) * 0.01
+    np.testing.assert_allclose(np.diag(filter_.covariance), expected, atol=1e-12)
+    np.testing.assert_allclose(
+        filter_.covariance - np.diag(np.diag(filter_.covariance)),
+        np.zeros((13, 13)),
+        atol=1e-15,
+    )

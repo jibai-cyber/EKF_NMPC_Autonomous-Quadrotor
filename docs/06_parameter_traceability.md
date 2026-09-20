@@ -58,7 +58,7 @@ $$
 | 加速度噪声 $\sigma_a$ | 0.08 m/s² | 课程给定 | [`project.yaml`](../src/drone_gnc/config/project.yaml#L3) | [`project.yaml`](../src/drone_gnc/config/project.yaml#L14) |
 | gyro 噪声 $\sigma_g$ | 0.015 rad/s | 课程给定 | [`project.yaml`](../src/drone_gnc/config/project.yaml#L4) | [`project.yaml`](../src/drone_gnc/config/project.yaml#L15) |
 | GNSS 位置噪声 $\sigma_p$ | 0.02 m | 课程给定 | [`project.yaml`](../src/drone_gnc/config/project.yaml#L5) | [`project.yaml`](../src/drone_gnc/config/project.yaml#L16) |
-| 模型加速度噪声密度 N/E/D | [0.50, 0.08, 0.08] m/s²/$\sqrt{\mathrm{Hz}}$ | 工程整定 | 不适用 | [`project.yaml`](../src/drone_gnc/config/project.yaml#L18) |
+| EKF 对角过程噪声率 | $[10^{-8}I_3,\sigma_a^2I_3,\sigma_g^2I_4/4,\sigma_g^2I_3]$ | 原始经验模型 | 不适用 | [`ekf.py`](../src/drone_gnc/drone_gnc/ekf.py) |
 | 随机种子 | 6224 | 工程配置 | [`project.yaml`](../src/drone_gnc/config/project.yaml#L7) | 不适用 |
 | GNSS 参考点 | 1.3521°, 103.8198°, 0 m | 工程配置 | [`project.yaml`](../src/drone_gnc/config/project.yaml#L8-L10) | 不适用 |
 

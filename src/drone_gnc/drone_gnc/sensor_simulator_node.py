@@ -1,7 +1,5 @@
 """Add the specified white noise and expose NED/FRD sensor topics."""
 
-import math
-
 import numpy as np
 import rclpy
 from drone_interfaces.msg import PositionFix, State13
@@ -16,6 +14,7 @@ from .frames import (
     vector_enu_to_ned,
     vector_flu_to_frd,
 )
+from .geodesy import Wgs84LocalFrame
 
 
 def stamp_seconds(stamp) -> float:
@@ -35,6 +34,11 @@ class SensorSimulatorNode(Node):
             "reference_longitude_deg", 103.8198
         ).value
         self.reference_altitude_m = self.declare_parameter("reference_altitude_m", 0.0).value
+        self.local_geodetic_frame = Wgs84LocalFrame(
+            self.reference_latitude_deg,
+            self.reference_longitude_deg,
+            self.reference_altitude_m,
+        )
         seed = int(self.declare_parameter("random_seed", 6224).value)
 
         self.rng = np.random.default_rng(seed)
@@ -105,17 +109,11 @@ class SensorSimulatorNode(Node):
         self.imu_publisher.publish(output)
 
     def navsat_callback(self, message: NavSatFix) -> None:
-        earth_radius_m = 6_378_137.0
-        latitude_delta = math.radians(message.latitude - self.reference_latitude_deg)
-        longitude_delta = math.radians(message.longitude - self.reference_longitude_deg)
-        north = earth_radius_m * latitude_delta
-        east = (
-            earth_radius_m
-            * math.cos(math.radians(self.reference_latitude_deg))
-            * longitude_delta
+        position_ned = self.local_geodetic_frame.position_ned(
+            message.latitude,
+            message.longitude,
+            message.altitude,
         )
-        down = -(message.altitude - self.reference_altitude_m)
-        position_ned = np.array([north, east, down])
         position_ned += self.position_std * self.rng.standard_normal(3)
 
         output = PositionFix()

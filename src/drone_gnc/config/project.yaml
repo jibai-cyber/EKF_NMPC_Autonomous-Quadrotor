@@ -14,8 +14,6 @@ ekf_node:
     accel_std_mps2: 0.08
     gyro_std_radps: 0.015
     position_std_m: 0.02
-    # Continuous white-acceleration model-error density in NED [m/s^2/sqrt(Hz)].
-    model_accel_noise_density_ned: [0.50, 0.08, 0.08]
 
 trajectory_node:
   ros__parameters:

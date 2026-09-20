@@ -181,33 +181,25 @@ $$
 P_{k+1}^-=F_kP_k^+F_k^T+Q_k.
 $$
 
-当前实现先对 IMU 输入计算离散过程 Jacobian
+当前稳定性测试恢复原始的经验对角过程噪声：
 
 $$
-G_k=\frac{\partial f_d}{\partial[\mathbf f_m^T\ \boldsymbol\omega_m^T]^T},
+Q_k=\operatorname{diag}\left(
+10^{-8}I_3,
+\sigma_a^2I_3,
+\frac14\sigma_g^2I_4,
+\sigma_g^2I_3
+\right)\Delta t.
 $$
 
-并传播实际离散测量噪声：
+四个对角块依次对应位置、速度、四元数和机体系角速度。该模型实现简单，不计算 IMU
+输入 Jacobian，也不显式保留位置—速度或姿态—角速度过程噪声交叉项。它是经验协方差率，
+不是严格的连续噪声精确离散。
 
-$$
-Q_{\mathrm{imu},k}=G_k\operatorname{diag}
-(\sigma_a^2I_3,\sigma_g^2I_3)G_k^T.
-$$
-
-因此位置—速度、姿态—角速度之间由同一 IMU 样本造成的相关项会被保留。对未建模加速度
-再使用连续白噪声的定加速度精确离散。令
-$S_a=\operatorname{diag}(s_N^2,s_E^2,s_D^2)$，则
-
-$$
-Q_{pv}=\begin{bmatrix}
-S_a\Delta t^3/3&S_a\Delta t^2/2\\
-S_a\Delta t^2/2&S_a\Delta t
-\end{bmatrix}.
-$$
-
-当前 $[s_N,s_E,s_D]=[0.50,0.08,0.08]$ m/s²/$\sqrt{\mathrm{Hz}}$。North 分量根据
-验收创新一致性整定；修改前 X 轴 $\pm2\sigma$ 覆盖率为 82.42%，当前完整仿真提高到
-92.09%，同时 Y/Z 保持在 97% 以上。该参数属于估计器工程参数，不是飞行器物理参数。
+在保留 WGS84 geodetic→ECEF→NED 修正的完整八字仿真中，该简单模型未发生发散，X/Y/Z
+位置 RMSE 分别为 0.01115/0.01095/0.00987 m，$\pm2\sigma$ 覆盖率分别为
+97.58%/97.56%/97.84%。单次固定随机种子结果表明当前闭环稳定，但不能代替 Monte Carlo
+一致性验证。
 
 ## 8. GNSS 位置更新
 

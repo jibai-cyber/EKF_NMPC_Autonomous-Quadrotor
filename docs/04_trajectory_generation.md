@@ -236,7 +236,7 @@ $\dot{\mathbf p}=\mathbf p'(s)\dot s$、
 $\ddot{\mathbf p}=\mathbf p''(s)\dot s^2+\mathbf p'(s)\ddot s$ 得到。因此入口的位置、
 速度和加速度连续，且没有拟合新的 Cartesian 过渡曲线。
 
-当前 $T_{\mathrm{to}}=5$ s、$T_\psi=5$ s、$T_r=3$ s。最终仿真在 10.52 s 通过状态
+当前 $T_{\mathrm{to}}=5$ s、$T_\psi=5$ s、$T_r=3$ s。最终仿真在 10.51 s 通过状态
 门控；入口 5 s 三维 RMSE 为 0.0490 m，最大三维误差为 0.0708 m。
 
 **代码对应**
