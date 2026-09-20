@@ -74,8 +74,8 @@
         <material><diffuse>0.75 0.75 0.78 0.75</diffuse></material>
       </visual>
 
-      <!-- Raw ideal sensors. Required white noise and random-walk bias are added by
-           sensor_simulator_node, keeping all course assumptions explicit in our code. -->
+      <!-- Raw ideal sensors. Required white noise is added by sensor_simulator_node;
+           IMU biases are deliberately not modeled in this acceptance configuration. -->
       <sensor name="imu_raw" type="imu">
         <always_on>true</always_on>
         <update_rate>100</update_rate>
@@ -111,4 +111,3 @@
     </plugin>
   </model>
 </sdf>
-

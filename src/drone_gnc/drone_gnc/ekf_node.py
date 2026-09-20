@@ -16,8 +16,6 @@ class EkfNode(Node):
             accel_std_mps2=self.declare_parameter("accel_std_mps2", 0.08).value,
             gyro_std_radps=self.declare_parameter("gyro_std_radps", 0.015).value,
             position_std_m=self.declare_parameter("position_std_m", 0.02).value,
-            accel_bias_rw_std=self.declare_parameter("accel_bias_rw_std", 0.002).value,
-            gyro_bias_rw_std=self.declare_parameter("gyro_bias_rw_std", 0.0002).value,
         )
         self.filter = QuadrotorEkf(noise=noise)
         self.last_imu_time: float | None = None

@@ -12,6 +12,7 @@
 4. [任务与三维八字轨迹](04_trajectory_generation.md)
 5. [NMPC 与安全回退控制](05_nmpc_and_fallback.md)
 6. [参数与实现追溯](06_parameter_traceability.md)
+7. [Rubric 验收报告](07_acceptance_report.md)
 
 ## 统一符号
 
@@ -25,13 +26,12 @@
 | $\boldsymbol\omega^B$ | FRD 机体系角速度 `[p,q,r]`，单位 rad/s |
 | $R_{WB}(\mathbf q)$ | 机体系到世界系的旋转矩阵 |
 | $\mathbf T=[T_0,T_1,T_2,T_3]^T$ | 四个正值旋翼推力，单位 N |
-| $\mathbf b_a,\mathbf b_g$ | 加速度计和陀螺仪 bias |
 | $\hat{\mathbf x}$ | EKF 状态估计 |
 | $P$ | EKF 状态误差协方差 |
 
 ## 状态排列
 
-控制器和 ROS `State13` 消息使用：
+动力学、EKF、控制器和 ROS `State13` 消息统一使用：
 
 $$
 \mathbf x=
@@ -40,24 +40,14 @@ $$
 \end{bmatrix}^T\in\mathbb R^{13}.
 $$
 
-EKF 内部使用：
-
-$$
-\mathbf x_E=
-\begin{bmatrix}
-\mathbf p^W & \mathbf v^W & \mathbf q^{WB} & \boldsymbol\omega^B &
-\mathbf b_a & \mathbf b_g
-\end{bmatrix}^T\in\mathbb R^{19}.
-$$
-
-`b_a` 和 `b_g` 是滤波器中间状态，不进入 `State13` 输出。
+当前验收模型不考虑 IMU bias，因此不存在额外的 bias 状态。
 
 **代码对应**
 
 | 文件 | 符号/函数 | 当前行号 | 作用 |
 |---|---|---:|---|
-| [`ekf.py`](../src/drone_gnc/drone_gnc/ekf.py#L19-L27) | `QuadrotorEkf.state_size`、`public_state_size` | 19-27 | 定义 19/13 维状态 |
-| [`ekf.py`](../src/drone_gnc/drone_gnc/ekf.py#L146-L159) | `public_state`、`internal_biases` | 146-159 | 分离公开状态与内部 bias |
+| [`ekf.py`](../src/drone_gnc/drone_gnc/ekf.py) | `QuadrotorEkf.state_size` | - | 定义 13 维 EKF 状态 |
+| [`ekf.py`](../src/drone_gnc/drone_gnc/ekf.py) | `public_state` | - | 归一化后输出同一 13 维状态 |
 | [`State13.msg`](../src/drone_interfaces/msg/State13.msg) | `State13` | 1-9 | ROS 侧 13 维状态布局 |
 
 ## 课程公式的两项必要解释
@@ -114,9 +104,9 @@ $$
 
 本文档描述的是当前代码，而不是理想化的最终算法。已知的重要假设包括：
 
-- EKF 使用 4 维四元数直接进入 19 维协方差，而不是 3 维姿态误差状态；
+- EKF 使用 4 维四元数直接进入 13 维协方差，而不是 3 维姿态误差状态；
 - 状态转移 Jacobian 使用中心差分数值计算；
 - 悬停时仅凭 IMU 和 GNSS 位置不能观测绝对 yaw；
-- bias random-walk 强度是工程假设，因为课程 PDF 没有给出其谱密度；
+- 当前传感器与 EKF 均忽略 IMU bias，只考虑题目指定的白噪声；
 - 任务阶段按固定时间切换，尚未实现稳定驻留条件；
 - NMPC 后处理中的推力 slew-rate 投影没有进入预测模型约束。

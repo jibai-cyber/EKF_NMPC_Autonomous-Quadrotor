@@ -1,14 +1,23 @@
+from dataclasses import fields
+
 import numpy as np
 
-from drone_gnc.ekf import QuadrotorEkf
+from drone_gnc.ekf import EkfNoise, QuadrotorEkf
 
 
-def test_biases_are_internal_and_public_state_has_13_elements():
+def test_noise_model_contains_only_white_noise_terms():
+    assert [field.name for field in fields(EkfNoise)] == [
+        "accel_std_mps2",
+        "gyro_std_radps",
+        "position_std_m",
+    ]
+
+
+def test_filter_state_and_covariance_have_13_elements():
     filter_ = QuadrotorEkf()
     filter_.initialize_position(np.array([0.0, 0.0, -2.5]))
-    filter_.state[13:16] = [0.1, 0.2, 0.3]
-    filter_.state[16:19] = [0.01, 0.02, 0.03]
-    assert filter_.state.shape == (19,)
+    assert filter_.state.shape == (13,)
+    assert filter_.covariance.shape == (13, 13)
     assert filter_.public_state.shape == (13,)
     assert filter_.public_covariance.shape == (13, 13)
 
@@ -30,4 +39,3 @@ def test_gnss_update_reduces_position_uncertainty():
     filter_.update_position(np.array([0.01, -0.01, -2.5]))
     after = np.diag(filter_.public_covariance)[0:3]
     assert np.all(after < before)
-

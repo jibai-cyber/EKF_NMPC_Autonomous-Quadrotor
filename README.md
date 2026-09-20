@@ -3,7 +3,7 @@
 A reproducible ROS 2 and Gazebo simulation platform for nonlinear state estimation and
 constraint-aware trajectory tracking of a quadrotor.
 
-The quadrotor dynamics, 19-state EKF, constrained NMPC, mission generator, actuator mixer,
+The quadrotor dynamics, 13-state EKF, constrained NMPC, mission generator, actuator mixer,
 and safety fallback controllers are implemented directly in this repository. The project does
 not call PX4 or Gazebo's ready-made multicopter dynamics or flight-control models. Gazebo is
 used only for generic rigid-body physics, collision, raw sensors, and visualization.
@@ -68,6 +68,15 @@ python3 -m pytest -q
 ./scripts/run_simulation.sh
 ```
 
+For an unattended acceptance run without opening the Gazebo window:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source /opt/drone_venv/bin/activate
+source install/setup.bash
+ros2 launch drone_gazebo simulation.launch.py gui:=false show_trajectory:=false
+```
+
 The Gazebo window should open with the quadrotor on the ground. It takes off to
 `(0, 0, -2.0 m)` in NED coordinates, aligns yaw to approximately `53.13 deg`, and then
 starts the figure-8.
@@ -101,8 +110,8 @@ dependencies from being mixed with packages from a newer host distribution.
 - World frame: North-East-Down (NED). Increasing altitude makes z more negative.
 - Body frame: Forward-Right-Down (FRD).
 - Controller state: `p(3) + v(3) + q(4) + omega(3) = 13` states.
-- EKF internal state: the 13 vehicle states plus `b_a(3) + b_g(3) = 19` states.
-- The six IMU bias states remain internal to the EKF and are not published to the controller.
+- EKF state: the same 13 vehicle states published to the controller.
+- IMU biases are not modeled; the sensor model injects only the specified white noise.
 - Control input: four physical rotor thrusts `[T0, T1, T2, T3]` in newtons.
 - Gazebo provides rigid-body integration, collision, raw sensors, and visualization.
 - The custom Gazebo plugin maps the four rotor thrusts directly to body force and torque.
@@ -314,8 +323,8 @@ The launch file starts:
 1. Gazebo Harmonic and the course quadrotor SDF;
 2. ROS/Gazebo bridges for IMU, NavSat, and odometry;
 3. the custom rotor-wrench plugin and actuator bridge;
-4. sensor noise and bias random-walk simulation;
-5. the 19-state EKF;
+4. sensor white-noise simulation;
+5. the 13-state EKF;
 6. the phased mission-reference generator;
 7. CasADi/IPOPT NMPC and geometric fallback control;
 8. Gazebo trajectory trails;
@@ -359,7 +368,7 @@ src/drone_gnc/config/project.yaml
 
 The file contains:
 
-- IMU/GNSS noise and bias random walks;
+- IMU/GNSS white noise; IMU biases are deliberately omitted;
 - takeoff, yaw-alignment, and figure-8 parameters;
 - mass, inertia, arm lengths, and rotor limits;
 - NMPC horizon, time step, weights, torque limits, and attitude constraints;
@@ -383,7 +392,7 @@ The default flight log is:
 results/flight_log.csv
 ```
 
-Generate report plots:
+Generate acceptance plots, a concise log, and metric summaries:
 
 ```bash
 python3 scripts/generate_plots.py
@@ -391,9 +400,15 @@ python3 scripts/generate_plots.py
 
 Outputs:
 
+- `results/acceptance_log.csv`
+- `results/acceptance_summary.txt`
+- `results/acceptance_summary.csv`
 - `results/plots/trajectory_3d.png`
 - `results/plots/ekf_position_error_2sigma.png`
 - `results/plots/rotor_thrusts.png`
+- `results/plots/tracking_errors.png`
+- `results/plots/control_constraints.png`
+- `results/plots/attitude_rates.png`
 - `results/plots/solver_time.png`
 
 The logger overwrites `flight_log.csv` when a new simulation starts. Copy or rename a result
@@ -405,7 +420,7 @@ before launching the next experiment when it must be retained.
 |---|---|---|
 | `/drone/imu_raw` | `sensor_msgs/Imu` | Raw Gazebo IMU |
 | `/drone/navsat_raw` | `sensor_msgs/NavSatFix` | Raw Gazebo NavSat |
-| `/drone/imu` | `sensor_msgs/Imu` | IMU with configured noise and bias |
+| `/drone/imu` | `sensor_msgs/Imu` | IMU with configured white noise |
 | `/drone/gnss/position_ned` | `drone_interfaces/PositionFix` | Local NED position measurement |
 | `/drone/state_estimate` | `drone_interfaces/State13` | Public 13-state EKF estimate |
 | `/drone/reference` | `drone_interfaces/TrajectoryPoint` | Mission reference |
@@ -484,11 +499,11 @@ dynamics model.
 
 ## 16. Assumptions and Known Limitations
 
-- The specification defines accelerometer and gyroscope bias random walks but does not give
-  their spectral densities. The YAML values are documented engineering assumptions.
+- IMU biases are deliberately not modeled. The simulated sensor adds only the specified white
+  noise, and the EKF state is therefore exactly the 13-dimensional vehicle state.
 - Absolute yaw is unobservable during hover with only IMU and GNSS position measurements;
   the simulation assumes a known initial yaw.
-- The current EKF uses a nominal quaternion inside a direct 19-dimensional covariance and a
+- The current EKF uses a nominal quaternion inside a direct 13-dimensional covariance and a
   numerical process Jacobian. It is not a multiplicative error-state quaternion EKF.
 - Mission phases switch at fixed times rather than waiting for verified position, velocity,
   and attitude convergence.

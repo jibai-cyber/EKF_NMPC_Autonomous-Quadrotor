@@ -30,12 +30,13 @@ class LoggerNode(Node):
                 "solver_cost",
                 "solver_iterations",
                 "solver_success",
+                "solver_status",
             ]
         )
         self.truth = [float("nan")] * 13
         self.reference = [float("nan")] * 13
         self.thrusts = [float("nan")] * 4
-        self.solver_stats = [float("nan"), float("nan"), -1, False]
+        self.solver_stats = [float("nan"), float("nan"), -1, False, "not_started"]
         self.create_subscription(State13, "/drone/state_estimate", self.estimate_callback, 10)
         self.create_subscription(
             State13,
@@ -100,6 +101,7 @@ class LoggerNode(Node):
             message.cost,
             message.iterations,
             message.success,
+            message.status,
         ]
 
     def destroy_node(self):

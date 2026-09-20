@@ -3,10 +3,7 @@ sensor_simulator_node:
     accel_std_mps2: 0.08
     gyro_std_radps: 0.015
     position_std_m: 0.02
-    # The PDF gives random-walk equations but no spectral densities. These two
-    # conservative defaults must be documented/tuned or replaced if staff provide values.
-    accel_bias_rw_std: 0.002
-    gyro_bias_rw_std: 0.0002
+    # IMU biases are not modeled; only the specified white noise is injected.
     random_seed: 6224
     reference_latitude_deg: 1.3521
     reference_longitude_deg: 103.8198
@@ -17,8 +14,6 @@ ekf_node:
     accel_std_mps2: 0.08
     gyro_std_radps: 0.015
     position_std_m: 0.02
-    accel_bias_rw_std: 0.002
-    gyro_bias_rw_std: 0.0002
 
 trajectory_node:
   ros__parameters:
