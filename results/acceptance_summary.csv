@@ -1,0 +1,45 @@
+category,metric,value,unit
+configuration,imu_bias_model,disabled_assumed_zero,
+mission,logged_samples,9285,samples
+mission,final_simulation_time,92.85,s
+tracking,figure8_x_rmse,0.02074551896233917,m
+tracking,figure8_x_max_abs,0.06815877734930798,m
+tracking,figure8_y_rmse,0.02728688379262905,m
+tracking,figure8_y_max_abs,0.0763884572325536,m
+tracking,figure8_z_rmse,0.00972327815374277,m
+tracking,figure8_z_max_abs,0.03085923346612951,m
+tracking,figure8_3d_rmse,0.03562994137216994,m
+tracking,figure8_3d_max,0.0807993141071348,m
+tracking,figure8_yaw_rmse,1.6748376849605942,deg
+ekf,position_x_rmse,0.011149797740732463,m
+ekf,position_x_2sigma_coverage,97.57881052973676,%
+ekf,position_y_rmse,0.010945154191569651,m
+ekf,position_y_2sigma_coverage,97.5625609359766,%
+ekf,position_z_rmse,0.009870596463943946,m
+ekf,position_z_2sigma_coverage,97.83880402989925,%
+constraints,minimum_rotor_thrust,2.37763813199131,N
+constraints,maximum_rotor_thrust,3.517618468254545,N
+constraints,rotor_thrust_violation_count,0,samples
+constraints,maximum_applied_thrust_step,0.46890851906371367,N/update
+constraints,thrust_step_limit,2.0,N/update
+constraints,thrust_slew_violation_count,0,samples
+constraints,maximum_abs_torque_x,0.049999833167994015,N m
+constraints,torque_x_violation_count,0,samples
+constraints,maximum_abs_torque_y,0.04999927148776199,N m
+constraints,torque_y_violation_count,0,samples
+constraints,maximum_abs_torque_z,0.014999533722775248,N m
+constraints,torque_z_violation_count,0,samples
+constraints,maximum_truth_tilt,5.726281957253585,deg
+constraints,tilt_violation_count,0,samples
+constraints,maximum_abs_body_rate_p,31.64461456143369,deg/s
+constraints,body_rate_p_violation_count,0,samples
+constraints,maximum_abs_body_rate_q,28.12146431070728,deg/s
+constraints,body_rate_q_violation_count,0,samples
+constraints,maximum_abs_body_rate_r,56.72244858011881,deg/s
+constraints,body_rate_r_violation_count,0,samples
+solver,success_rate,99.98375040623985,%
+solver,median_solve_time,11.431308999817702,ms
+solver,p95_solve_time,15.618137000274146,ms
+solver,maximum_solve_time,82.5652169987734,ms
+solver,control_deadline_miss_count,4,samples
+solver,unsuccessful_solve_count,1,samples

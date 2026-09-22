@@ -1,0 +1,56 @@
+MA6224 EKF-NMPC acceptance summary
+Generated from results/flight_log.csv
+Tracking metrics use the figure-8 phase only.
+
+[configuration]
+imu_bias_model: disabled_assumed_zero
+[mission]
+logged_samples: 9285 samples
+final_simulation_time: 92.85 s
+[tracking]
+figure8_x_rmse: 0.0207455 m
+figure8_x_max_abs: 0.0681588 m
+figure8_y_rmse: 0.0272869 m
+figure8_y_max_abs: 0.0763885 m
+figure8_z_rmse: 0.00972328 m
+figure8_z_max_abs: 0.0308592 m
+figure8_3d_rmse: 0.0356299 m
+figure8_3d_max: 0.0807993 m
+figure8_yaw_rmse: 1.67484 deg
+[ekf]
+position_x_rmse: 0.0111498 m
+position_x_2sigma_coverage: 97.5788 %
+position_y_rmse: 0.0109452 m
+position_y_2sigma_coverage: 97.5626 %
+position_z_rmse: 0.0098706 m
+position_z_2sigma_coverage: 97.8388 %
+[constraints]
+minimum_rotor_thrust: 2.37764 N
+maximum_rotor_thrust: 3.51762 N
+rotor_thrust_violation_count: 0 samples
+maximum_applied_thrust_step: 0.468909 N/update
+thrust_step_limit: 2 N/update
+thrust_slew_violation_count: 0 samples
+maximum_abs_torque_x: 0.0499998 N m
+torque_x_violation_count: 0 samples
+maximum_abs_torque_y: 0.0499993 N m
+torque_y_violation_count: 0 samples
+maximum_abs_torque_z: 0.0149995 N m
+torque_z_violation_count: 0 samples
+maximum_truth_tilt: 5.72628 deg
+tilt_violation_count: 0 samples
+maximum_abs_body_rate_p: 31.6446 deg/s
+body_rate_p_violation_count: 0 samples
+maximum_abs_body_rate_q: 28.1215 deg/s
+body_rate_q_violation_count: 0 samples
+maximum_abs_body_rate_r: 56.7224 deg/s
+body_rate_r_violation_count: 0 samples
+[solver]
+success_rate: 99.9838 %
+median_solve_time: 11.4313 ms
+p95_solve_time: 15.6181 ms
+maximum_solve_time: 82.5652 ms
+control_deadline_miss_count: 4 samples
+unsuccessful_solve_count: 1 samples
+
+Note: the rubric defines qualitative bands, not numerical pass thresholds.
